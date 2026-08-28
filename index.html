@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>资金渠道追踪仪表盘</title>
+    <script src="vendor/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="css/style.css">
+
+</head>
+<body>
+    <div class="bg-blobs"><div class="blob blob-1"></div><div class="blob blob-2"></div><div class="blob blob-3"></div></div>
+
+    <!-- ===== Lock Screen ===== -->
+    <div id="lockScreen">
+        <div class="lock-card" id="lockCard">
+            <div class="lock-logo">🔒</div>
+            <h2 id="lockTitle">输入密码</h2>
+            <div class="lock-sub" id="lockSub">请输入锁屏密码以进入</div>
+            <div class="lock-field">
+                <input type="password" id="lockPin" maxlength="32" placeholder="密码" autocomplete="new-password" autocapitalize="off" spellcheck="false" enterkeyhint="go">
+                <button class="lock-eye" id="lockEye" onclick="toggleLockEye()" title="显示/隐藏密码">👁</button>
+            </div>
+            <div class="lock-field" id="lockSecondField" style="display:none;">
+                <input type="password" id="lockPin2" maxlength="32" placeholder="再次输入密码" autocomplete="new-password" autocapitalize="off" spellcheck="false" enterkeyhint="go">
+            </div>
+            <div class="lock-err" id="lockErr"></div>
+            <button class="btn btn-primary lock-btn" id="lockBtn" onclick="submitLock()">🔓 进入</button>
+            <div class="lock-links" id="lockLinks">
+                <a onclick="startChangeLock()">修改密码</a>
+                <a onclick="forgotLock()">忘记密码？</a>
+            </div>
+            <div class="lock-hint">🔐 密码仅保存在本机浏览器，不会上传到任何服务器</div>
+        </div>
+    </div>
+
+    <header>
+        <div class="container">
+            <h1>
+                <span class="logo">📊</span>
+                <span id="titleText" class="title-editable" title="点击修改标题">资金渠道追踪</span>
+                <button class="title-edit-btn" onclick="startEditTitle()" title="修改标题">✏️</button>
+            </h1>
+            <div class="header-right">
+                <div class="header-stats">
+                    <div class="header-stat">
+                        <div class="label">资金渠道</div>
+                        <div class="value" id="hChannels">0</div>
+                    </div>
+                    <div class="header-stat">
+                        <div class="label">快照记录</div>
+                        <div class="value" id="hMonths">0</div>
+                    </div>
+                    <div class="header-stat">
+                        <div class="label">净资产</div>
+                        <div class="value" id="hNet">¥0</div>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="hbtn" id="themeBtn" onclick="toggleTheme()" title="切换黑白模式">🌙 深色</button>
+                    <button class="hbtn" onclick="lockNow()" title="立即锁定，保护隐私">🔒 锁定</button>
+                    <button class="hbtn" id="privBtn" onclick="togglePrivMode()" title="暂时隐藏/显示所有金额">👁 隐藏</button>
+                    <button class="hbtn" onclick="exportBackup()" title="导出完整数据备份（JSON），可随时导入恢复">💾 导出备份</button>
+                    <button class="hbtn" onclick="exportCSV()" title="导出报表（CSV），可用 Excel 打开">📄 导出报表</button>
+                    <button class="hbtn" onclick="document.getElementById('fileInput').click()" title="从备份文件恢复数据">📂 导入</button>
+                </div>
+            </div>
+        </div>
+        <input type="file" id="fileInput" accept=".json,application/json" style="display:none;" onchange="handleImport(event)">
+    </header>
+
+    <main>
+        <div class="container">
+            <!-- Summary -->
+            <div class="summary-grid">
+                <div class="summary-card asset">
+                    <div class="label">💰 总资产</div>
+                    <div class="amount" id="sAsset">¥0.00</div>
+                    <div class="sub" id="sAssetDate">暂无数据</div>
+                </div>
+                <div class="summary-card debt">
+                    <div class="label">📉 总欠款</div>
+                    <div class="amount" id="sDebt">¥0.00</div>
+                    <div class="sub" id="sDebtDate">暂无数据</div>
+                </div>
+                <div class="summary-card net">
+                    <div class="label">✅ 净资产</div>
+                    <div class="amount" id="sNet">¥0.00</div>
+                    <div class="sub" id="sNetSub">资产 − 欠款</div>
+                </div>
+                <div class="summary-card month-change">
+                    <div class="label">📈 较上次变动</div>
+                    <div class="amount" id="sMonthChange">—</div>
+                    <div class="sub" id="sMonthChangeSub">暂无对比</div>
+                </div>
+                <div class="summary-card month-rate">
+                    <div class="label">⏫ 较上次增幅</div>
+                    <div class="amount" id="sMonthRate">—</div>
+                    <div class="sub" id="sMonthRateSub">暂无数据</div>
+                </div>
+                <div class="summary-card channels">
+                    <div class="label">🔗 资金渠道</div>
+                    <div class="amount" id="sChannels">0</div>
+                    <div class="sub" id="sChannelsActive">0 个渠道有数据</div>
+                </div>
+            </div>
+
+            <!-- 投资概览 -->
+            <div id="investSection" style="display:none;">
+                <div class="summary-grid invest-grid">
+                    <div class="summary-card invest-total">
+                        <div class="label">📈 投资总值</div>
+                        <div class="amount" id="invTotal">¥0.00</div>
+                        <div class="sub" id="invCostSub">暂无数据</div>
+                    </div>
+                    <div class="summary-card invest-profit">
+                        <div class="label">💰 累计收益</div>
+                        <div class="amount" id="invProfit">—</div>
+                        <div class="sub">当前净值 − 投入本金</div>
+                    </div>
+                    <div class="summary-card invest-rate">
+                        <div class="label">⏫ 收益率</div>
+                        <div class="amount" id="invRate">—</div>
+                        <div class="sub">累计收益 / 投入本金</div>
+                    </div>
+                </div>
+                <div class="invest-groups" id="investGroups"></div>
+            </div>
+
+            <div class="grid">
+                <!-- Left Column -->
+                <div style="display: flex; flex-direction: column; gap: 20px;">
+                    <!-- Channels -->
+                    <div class="card">
+                        <h2 id="channelCardHeader">
+                            <span class="chip" style="background: #eef2ff; color: var(--primary);">🏦</span>
+                            <span class="sec-title" id="secTitleChannels" title="点击修改名称">资金渠道</span>
+                            <button class="sec-edit-btn" onclick="startEditSection('secTitleChannels')" title="修改名称">✏️</button>
+                            <span class="sort-hint">✋ 按住卡片拖动可排序</span>
+                            <button class="btn btn-sm btn-outline" style="margin-left: auto;" onclick="openChannelModal()">+ 新增渠道</button>
+                        </h2>
+                        <div class="filter-chips" id="channelFilterChips">
+                            <span class="legend-chip active" data-f="all" onclick="setInvestFilter('all')">全部</span>
+                            <span class="legend-chip" data-f="invest" onclick="setInvestFilter('invest')">📈 投资</span>
+                            <span class="legend-chip" data-f="cash" onclick="setInvestFilter('cash')">💵 资金</span>
+                            <span id="investTypeChips"></span>
+                        </div>
+                        <div class="channel-grid" id="channelGrid">
+                            <div class="empty-state" style="grid-column: 1/-1;">
+                                <div class="emoji">🏦</div>
+                                <p>还没有资金渠道，点击"新增渠道"添加<br>如：银行卡、支付宝、微信、基金、股票等</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Debts -->
+                    <div class="card">
+                        <h2>
+                            <span class="chip" style="background: #fee2e2; color: var(--danger);">📉</span>
+                            <span class="sec-title" id="secTitleDebts" title="点击修改名称">欠款管理</span>
+                            <button class="sec-edit-btn" onclick="startEditSection('secTitleDebts')" title="修改名称">✏️</button>
+                            <button class="btn btn-sm btn-outline" style="margin-left: auto;" onclick="openDebtModal()">+ 新增欠款</button>
+                        </h2>
+                        <div class="debt-list" id="debtList">
+                            <div class="empty-state">
+                                <div class="emoji">📉</div>
+                                <p>还没有欠款记录<br>如：应付货款、供应商借款、花呗、信用卡等</p>
+                            </div>
+                        </div>
+                        <div class="debt-total" id="debtTotalBox" style="display:none;">
+                            <span>欠款合计</span>
+                            <span class="val" id="debtTotalVal">¥0.00</span>
+                        </div>
+                    </div>
+
+                    <!-- Snapshot -->
+                    <div class="card">
+                        <h2>
+                            <span class="chip" style="background: #d1fae5; color: var(--success);">📸</span>
+                            资金快照
+                            <span class="card-sub">按日期记录各渠道余额与欠款，保存时自动带上当天日期</span>
+                        </h2>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>日期</label>
+                                <input type="date" id="snapDate">
+                            </div>
+                            <div class="form-group">
+                                <label>操作</label>
+                                <select id="snapMode">
+                                    <option value="replace">整日覆盖</option>
+                                    <option value="merge">只填空白</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="snapshot-list" id="snapshotList">
+                            <div class="empty-state">
+                                <div class="emoji">📸</div>
+                                <p>添加渠道后，这里会出现余额填写框</p>
+                            </div>
+                        </div>
+                        <button class="btn btn-success btn-full" onclick="saveSnapshot()">💾 保存当日快照</button>
+                    </div>
+                </div>
+
+                <!-- Right Column -->
+                <div style="display: flex; flex-direction: column; gap: 20px;">
+                    <!-- Growth Curve -->
+                    <div class="card">
+                        <h2>
+                            <span class="chip" style="background: #fce7f3; color: #db2777;">📈</span>
+                            资产增长曲线
+                            <span class="card-sub">每条快照记录一个点，点击标签可显隐</span>
+                        </h2>
+                        <div class="chart-legend-chips" id="curveLegend"></div>
+                        <div class="chart-box">
+                            <canvas id="curveChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Data View -->
+                    <div class="card">
+                        <h2>
+                            <span class="chip" style="background: #fef3c7; color: var(--warning);">🗂️</span>
+                            历史数据
+                        </h2>
+                        <div class="tabs">
+                            <button id="tabMonth" class="active" onclick="switchView('month')">📅 按月查看</button>
+                            <button id="tabYear" onclick="switchView('year')">🗓️ 按年查看</button>
+                            <button id="tabTrend" onclick="switchView('trend')">📉 逐月增长</button>
+                        </div>
+
+                        <!-- Month View -->
+                        <div id="viewMonth">
+                            <div class="period-nav">
+                                <button class="nav-btn" onclick="shiftMonth(-1)">‹</button>
+                                <div class="title" id="monthTitle">—</div>
+                                <button class="nav-btn" onclick="shiftMonth(1)">›</button>
+                            </div>
+                            <div class="chart-box" style="height:220px; margin-bottom:14px;">
+                                <canvas id="monthChart"></canvas>
+                            </div>
+                            <div class="table-wrap">
+                                <table id="monthTable"></table>
+                            </div>
+                        </div>
+
+                        <!-- Year View -->
+                        <div id="viewYear" style="display: none;">
+                            <div class="period-nav">
+                                <button class="nav-btn" onclick="shiftYear(-1)">‹</button>
+                                <div class="title" id="yearTitle">—</div>
+                                <button class="nav-btn" onclick="shiftYear(1)">›</button>
+                            </div>
+                            <div class="chart-box" style="height:220px; margin-bottom:14px;">
+                                <canvas id="yearChart"></canvas>
+                            </div>
+                            <div class="table-wrap">
+                                <table id="yearTable"></table>
+                            </div>
+                        </div>
+
+                        <!-- Trend View -->
+                        <div id="viewTrend" style="display: none;">
+                            <div class="period-nav">
+                                <button class="nav-btn" onclick="shiftTrendYear(-1)">‹</button>
+                                <div class="title" id="trendYearTitle">—</div>
+                                <button class="nav-btn" onclick="shiftTrendYear(1)">›</button>
+                            </div>
+                            <div class="table-wrap">
+                                <table id="trendTable"></table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Channel Modal -->
+    <div class="modal-overlay" id="channelModal">
+        <div class="modal">
+            <h3 id="channelModalTitle">新增渠道</h3>
+            <div class="form-group">
+                <label>渠道名称</label>
+                <input type="text" id="chName" placeholder="如：招商银行 / 支付宝 / 天天基金">
+            </div>
+            <div class="form-group">
+                <label>类型 <span class="label-hint">点下方标签快速填入，也可直接输入任意类型</span></label>
+                <input type="text" id="chType" placeholder="如：支付宝、积存金、电子卡、e卡" maxlength="12" oninput="onTypeInput()">
+                <div class="type-chips" id="chTypeChips">
+                    <button type="button" class="type-chip" data-t="bank" onclick="pickType('bank')">🏦 银行卡</button>
+                    <button type="button" class="type-chip" data-t="alipay" onclick="pickType('alipay')">💰 支付宝</button>
+                    <button type="button" class="type-chip" data-t="wechat" onclick="pickType('wechat')">💬 微信</button>
+                    <button type="button" class="type-chip" data-t="cash" onclick="pickType('cash')">💵 现金</button>
+                    <button type="button" class="type-chip" data-t="gold" onclick="pickType('gold')">🥇 积存金</button>
+                    <button type="button" class="type-chip" data-t="nasdaq" onclick="pickType('nasdaq')">💹 纳指</button>
+                    <button type="button" class="type-chip" data-t="fund" onclick="pickType('fund')">📈 基金</button>
+                    <button type="button" class="type-chip" data-t="stock" onclick="pickType('stock')">📊 股票</button>
+                    <button type="button" class="type-chip" data-t="电子卡" onclick="pickType('电子卡')">💳 电子卡</button>
+                    <button type="button" class="type-chip" data-t="红包" onclick="pickType('红包')">🧧 红包</button>
+                    <button type="button" class="type-chip" data-t="零钱" onclick="pickType('零钱')">🪙 零钱</button>
+                    <button type="button" class="type-chip" data-t="other" onclick="pickType('other')">📦 其他</button>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>当前余额</label>
+                    <input type="text" id="chBalance" placeholder="0.00" inputmode="decimal" value="0" oninput="filterMoney(this)">
+                </div>
+                <div class="form-group" id="chCostGroup" style="display:none;">
+                    <label>投入成本（本金）</label>
+                    <input type="text" id="chCost" placeholder="累计投入本金，用于计算累计收益和收益率" inputmode="decimal" value="0" oninput="filterMoney(this)">
+                </div>
+            </div>
+            <div class="modal-note">💡 当前余额将作为本月快照记录保存</div>
+            <div class="modal-actions">
+                <button class="btn btn-outline" onclick="closeChannelModal()">取消</button>
+                <button class="btn btn-primary" onclick="saveChannel()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Debt Modal -->
+    <div class="modal-overlay" id="debtModal">
+        <div class="modal">
+            <h3 id="debtModalTitle">新增欠款</h3>
+            <div class="form-group">
+                <label>欠款名称</label>
+                <input type="text" id="debtName" placeholder="如：供应商货款 / 张总借款 / 花呗">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>类型</label>
+                    <select id="debtType">
+                        <option value="货款">🧾 货款</option>
+                        <option value="借款">🤝 借款</option>
+                        <option value="信用卡">💳 信用卡</option>
+                        <option value="花呗/白条">💸 花呗/白条</option>
+                        <option value="其他">📦 其他</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>欠款金额</label>
+                    <input type="text" id="debtAmount" placeholder="0.00" inputmode="decimal" value="0" oninput="filterMoney(this)">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>关联渠道（可选）</label>
+                <select id="debtChannel">
+                    <option value="">不关联</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>备注（可选）</label>
+                <input type="text" id="debtNote" placeholder="如：3月到期 / 含利息">
+            </div>
+            <div class="modal-note">💡 欠款金额会记入当前及后续月份的快照欠款合计</div>
+            <div class="modal-actions">
+                <button class="btn btn-outline" onclick="closeDebtModal()">取消</button>
+                <button class="btn btn-primary" onclick="saveDebt()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div class="modal-overlay" id="confirmModal">
+        <div class="modal">
+            <h3 id="confirmTitle">确认操作</h3>
+            <p id="confirmMessage" style="color: var(--text-secondary); font-size: 14px;"></p>
+            <div class="modal-actions">
+                <button class="btn btn-outline" onclick="closeConfirmModal()">取消</button>
+                <button class="btn btn-primary" id="confirmBtnMerge" style="display:none;">合并导入</button>
+                <button class="btn btn-danger" id="confirmBtn">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+    <script src="js/app.js"></script>
+</body>
+</html>
